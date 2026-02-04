@@ -168,29 +168,31 @@
   font-size: 16px;
 }
 
-.trayHint {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.tray {
-  margin-top: 14px;
-  padding-top: 12px;
+.trayRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
   border-top: 1px dashed rgba(10, 22, 40, 0.14);
 }
 
-.trayLabel {
+.trayRow:first-of-type {
+  border-top: none;
+  padding-top: 12px;
+}
+
+.trayRowLabel {
   color: var(--muted);
   font-size: 12px;
-  margin-bottom: 10px;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .trayDigits {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
 .digitBtn {

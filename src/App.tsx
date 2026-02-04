@@ -261,11 +261,10 @@ function App() {
 
           <section className="trays" aria-label="Available digits">
             <div className="trayTitle">Digits</div>
-            <div className="trayHint">Drag a digit into an empty cell in the same row. You can still tap-to-place as a fallback. Tap a placed digit to remove. Tap operator slots to toggle +/−.</div>
 
             {puzzle.rowDigits.map((digits, r) => (
-              <div className="tray" key={r}>
-                <div className="trayLabel">Row {r + 1}</div>
+              <div className="trayRow" key={r}>
+                <div className="trayRowLabel">Row {r + 1}</div>
                 <div className="trayDigits">
                   {digits.map((d) => {
                     const disabled = usedDigits.has(d)
