@@ -190,7 +190,7 @@ function App() {
     <div className="page">
       <header className="header">
         <div>
-          <div className="title">NumFlow</div>
+          <div className="title">NumFlow <span className="version">v2</span></div>
           <div className="subtitle">{puzzle.title} • Level {puzzle.level}</div>
         </div>
 

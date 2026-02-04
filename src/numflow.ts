@@ -153,9 +153,11 @@ export const SAMPLE_PUZZLES: Puzzle[] = [
       [{ kind: 'empty' }, { kind: 'op', value: '+', given: true }, { kind: 'empty' }, { kind: 'empty' }],
 
       // Row 2: [digit, digit(given hint), op(slot), digit]
-      [{ kind: 'empty' }, { kind: 'digit', value: 6, given: true }, { kind: 'op', value: '+', given: false }, { kind: 'empty' }],
+      // Default operator is set to the intended solution (player can toggle).
+      [{ kind: 'empty' }, { kind: 'digit', value: 6, given: true }, { kind: 'op', value: '-', given: false }, { kind: 'empty' }],
 
       // Row 3: [digit, op(slot), digit, digit(given hint)]
+      // Default operator is set to the intended solution (player can toggle).
       [{ kind: 'empty' }, { kind: 'op', value: '+', given: false }, { kind: 'empty' }, { kind: 'digit', value: 9, given: true }],
     ],
   },

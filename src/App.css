@@ -32,6 +32,19 @@
   font-weight: 850;
   letter-spacing: -0.02em;
   font-size: 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.version {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(37, 99, 235, 0.9);
+  background: rgba(37, 99, 235, 0.10);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
 .subtitle {
