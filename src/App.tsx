@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import './App.css'
 import { SAMPLE_PUZZLES, type Cell, cloneGrid, evaluateGrid, validatePuzzleRules } from './numflow'
 import {
@@ -92,12 +92,6 @@ function App() {
 
   const [grid, setGrid] = useState<Cell[][]>(() => cloneGrid(puzzle.grid))
   const [selected, setSelected] = useState<Selected>(null)
-  const [myScore, setMyScore] = useState<number>(() => {
-    const v = localStorage.getItem('numflow:score')
-    const n = v ? Number(v) : 0
-    return Number.isFinite(n) ? n : 0
-  })
-  const wasCorrectRef = useRef(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -124,18 +118,7 @@ function App() {
     }
   }, [grid, puzzle])
 
-  // When the puzzle becomes correct (edge), increment score + persist.
-  useEffect(() => {
-    const isCorrect = status.state === 'correct'
-    if (isCorrect && !wasCorrectRef.current) {
-      setMyScore((prev) => {
-        const next = prev + 1
-        localStorage.setItem('numflow:score', String(next))
-        return next
-      })
-    }
-    wasCorrectRef.current = isCorrect
-  }, [status.state])
+  // Score is shown in the status area below.
 
   const reset = () => {
     setGrid(cloneGrid(puzzle.grid))
@@ -211,18 +194,9 @@ function App() {
           <div className="subtitle">{puzzle.title} • Level {puzzle.level}</div>
         </div>
 
-        <div className="target" aria-label="Score and target">
-          <div className="targetTop">
-            <div className="score">
-              <div className="scoreLabel">My Score</div>
-              <div className="scoreValue">{myScore}</div>
-            </div>
-
-            <div className="targetRight">
-              <div className="targetLabel">Target</div>
-              <div className="targetValue">{puzzle.target}</div>
-            </div>
-          </div>
+        <div className="target" aria-label="Target">
+          <div className="targetLabel">Target</div>
+          <div className="targetValue">{puzzle.target}</div>
         </div>
       </header>
 
