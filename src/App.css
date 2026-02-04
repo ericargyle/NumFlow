@@ -47,6 +47,7 @@
   padding: 10px 12px;
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.10);
   min-width: 168px;
+  text-align: center;
 }
 
 .targetTop {
@@ -69,9 +70,7 @@
   color: var(--danger);
 }
 
-.targetRight {
-  text-align: right;
-}
+/* removed .targetRight */
 
 .targetLabel {
   color: var(--muted);
