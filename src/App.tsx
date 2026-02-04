@@ -128,7 +128,7 @@ export default function App() {
   const [grid, setGrid] = useState<Cell[][]>(() => cloneGrid(puzzle.grid))
   const [selected, setSelected] = useState<Selected>(null)
 
-  const [score, setScore] = useState<number>(() => {
+  const [, setScore] = useState<number>(() => {
     const v = localStorage.getItem('numflow:v3:score')
     const n = v ? Number(v) : 0
     return Number.isFinite(n) ? n : 0
@@ -316,11 +316,7 @@ export default function App() {
             <div className="infoValue">{formatMMSS(secondsLeft)}</div>
           </div>
 
-          <div className="infoBox" aria-label="Score">
-            <div className="infoLabel">Score</div>
-            <div className="infoValue">{score}</div>
-          </div>
-
+          {/* score box removed */}
           <div className="infoBox" aria-label="Target">
             <div className="infoLabel">Target</div>
             <div className="infoValue">{puzzle.target}</div>
@@ -400,10 +396,11 @@ export default function App() {
 
               <div className="hintBox" aria-label="Hint button area">
                 <button className={["hintBtnLarge", !canUseHint ? 'disabled' : ''].join(' ')} onClick={useHint} disabled={!canUseHint}>
-                  <LightbulbIcon size={22} />
-                  <div>
-                    <div className="hintBtnTitle">Hint</div>
-                    <div className="hintBtnSub">1 minute penalty</div>
+                  <div className="hintBtnInner">
+                    <div className="hintIconWrap">
+                      <LightbulbIcon size={44} />
+                    </div>
+                    <div className="hintPenalty">1 minute penalty</div>
                   </div>
                 </button>
               </div>
