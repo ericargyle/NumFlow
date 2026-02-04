@@ -7,7 +7,7 @@ export type Cell =
 
 export type Puzzle = {
   title: string
-  level: 1 | 2 | 3 | 4 | 5
+  level: number // 1..100 (MVP v3)
   target: number
   // 3 rows x 4 cols
   grid: Cell[][]
@@ -15,21 +15,33 @@ export type Puzzle = {
   rowDigits: number[][]
 }
 
+export type Level = {
+  puzzle: Puzzle
+  solution: Cell[][] // full filled grid (digits+ops), used for hint reveals
+}
+
+export const ROW_DIGITS: number[][] = [
+  [1, 2, 3],
+  [4, 5, 6],
+  [7, 8, 9],
+]
+
+// Fixed MVP operator positions (consistent with earlier versions)
+// Row 1: col 2 (index 1) given '+'
+// Row 2: col 3 (index 2) slot (+/-)
+// Row 3: col 2 (index 1) slot (+/-)
+export const OP_POS = { row1: 1, row2: 2, row3: 1 } as const
+
 export function cloneGrid(grid: Cell[][]): Cell[][] {
   return grid.map((r) => r.map((c) => ({ ...c } as Cell)))
 }
 
 export function gridIsComplete(grid: Cell[][]): boolean {
-  for (const row of grid) {
-    for (const cell of row) {
-      if (cell.kind === 'empty') return false
-    }
-  }
+  for (const row of grid) for (const cell of row) if (cell.kind === 'empty') return false
   return true
 }
 
 export function evalLeftToRight(tokens: Array<number | Op>): number {
-  // tokens like [123, '+', 45, '-', 6]
   if (tokens.length === 0) throw new Error('empty expression')
   let acc = tokens[0]
   if (typeof acc !== 'number') throw new Error('expression must start with number')
@@ -44,19 +56,16 @@ export function evalLeftToRight(tokens: Array<number | Op>): number {
 
 export function buildTokensFromGrid(grid: Cell[][]): Array<number | Op> {
   // Read strictly left-to-right, top-to-bottom.
-  // Concatenate digits until an operator appears, which finalizes the current number.
+  // Digits concatenate (including across row boundaries) until an operator appears.
   const flat: Cell[] = []
-  for (let r = 0; r < grid.length; r++) {
-    for (let c = 0; c < grid[r].length; c++) flat.push(grid[r][c])
-  }
+  for (let r = 0; r < grid.length; r++) for (let c = 0; c < grid[r].length; c++) flat.push(grid[r][c])
 
   const tokens: Array<number | Op> = []
   let currentDigits: number[] = []
 
   const flushNumber = () => {
     if (currentDigits.length === 0) return
-    const num = Number(currentDigits.join(''))
-    tokens.push(num)
+    tokens.push(Number(currentDigits.join('')))
     currentDigits = []
   }
 
@@ -70,7 +79,6 @@ export function buildTokensFromGrid(grid: Cell[][]): Array<number | Op> {
       tokens.push(cell.value)
       continue
     }
-    // empty -> expression incomplete
     throw new Error('Grid contains empty cells')
   }
   flushNumber()
@@ -78,7 +86,6 @@ export function buildTokensFromGrid(grid: Cell[][]): Array<number | Op> {
 }
 
 export function validatePuzzleRules(puzzle: Puzzle, grid: Cell[][]): { ok: boolean; error?: string } {
-  // 1) Each digit used exactly once (and all 9 digits placed)
   const seen = new Set<number>()
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 4; c++) {
@@ -91,7 +98,6 @@ export function validatePuzzleRules(puzzle: Puzzle, grid: Cell[][]): { ok: boole
   }
   if (seen.size !== 9) return { ok: false, error: 'All 9 digits must be placed.' }
 
-  // 2) Row digit constraints
   for (let r = 0; r < 3; r++) {
     const allowed = new Set(puzzle.rowDigits[r])
     for (let c = 0; c < 4; c++) {
@@ -102,7 +108,6 @@ export function validatePuzzleRules(puzzle: Puzzle, grid: Cell[][]): { ok: boole
     }
   }
 
-  // 3) Exactly one operator per row
   for (let r = 0; r < 3; r++) {
     const ops = grid[r].filter((c) => c.kind === 'op')
     if (ops.length !== 1) return { ok: false, error: `Row ${r + 1} must have exactly one operator.` }
@@ -113,10 +118,8 @@ export function validatePuzzleRules(puzzle: Puzzle, grid: Cell[][]): { ok: boole
 
 export function evaluateGrid(grid: Cell[][]): { value: number; expr: string; tokens: Array<number | Op> } {
   if (!gridIsComplete(grid)) throw new Error('Grid is not complete')
-
   const tokens = buildTokensFromGrid(grid)
 
-  // Must alternate number/op/number/op/...
   if (tokens.length < 3) throw new Error('Expression too short')
   if (typeof tokens[0] !== 'number') throw new Error('Expression must start with a number')
   if (typeof tokens[tokens.length - 1] !== 'number') throw new Error('Expression must end with a number')
@@ -130,35 +133,102 @@ export function evaluateGrid(grid: Cell[][]): { value: number; expr: string; tok
   return { value, expr, tokens }
 }
 
-// MVP: a single Level 1 puzzle with a unique solution.
-// Operator positions:
-// - Row 1: col 2 (given '+')
-// - Row 2: col 3 (player chooses +/-)
-// - Row 3: col 2 (player chooses +/-)
-// Reading order cell stream:
-//   a  op1  b c d e  op2  f g  op3  h i
-// Numbers are concatenated until an operator appears.
-export const SAMPLE_PUZZLES: Puzzle[] = [
-  {
-    title: 'Numberflow',
-    level: 1,
-    target: 2379,
-    rowDigits: [
-      [1, 2, 3],
-      [4, 5, 6],
-      [7, 8, 9],
-    ],
-    grid: [
-      // Row 1: [digit, op(given), digit, digit]
-      [{ kind: 'empty' }, { kind: 'op', value: '+', given: true }, { kind: 'empty' }, { kind: 'empty' }],
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice()
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 
-      // Row 2: [digit, digit(given hint), op(slot), digit]
-      // Default operator is set to the intended solution (player can toggle).
-      [{ kind: 'empty' }, { kind: 'digit', value: 6, given: true }, { kind: 'op', value: '-', given: false }, { kind: 'empty' }],
+function makeEmptyGrid(): Cell[][] {
+  return [
+    [{ kind: 'empty' }, { kind: 'op', value: '+', given: true }, { kind: 'empty' }, { kind: 'empty' }],
+    [{ kind: 'empty' }, { kind: 'empty' }, { kind: 'op', value: '+', given: false }, { kind: 'empty' }],
+    [{ kind: 'empty' }, { kind: 'op', value: '+', given: false }, { kind: 'empty' }, { kind: 'empty' }],
+  ]
+}
 
-      // Row 3: [digit, op(slot), digit, digit(given hint)]
-      // Default operator is set to the intended solution (player can toggle).
-      [{ kind: 'empty' }, { kind: 'op', value: '+', given: false }, { kind: 'empty' }, { kind: 'digit', value: 9, given: true }],
-    ],
-  },
-]
+function applyHints(base: Cell[][], solution: Cell[][], hintCount: number): Cell[][] {
+  const grid = cloneGrid(base)
+
+  // Candidate digit positions (exclude operator cells)
+  const candidates: Array<{ r: number; c: number }> = []
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 4; c++) {
+      if (grid[r][c].kind === 'empty') candidates.push({ r, c })
+    }
+  }
+
+  const picks = shuffle(candidates).slice(0, hintCount)
+  for (const { r, c } of picks) {
+    const sol = solution[r][c]
+    if (sol.kind === 'digit') grid[r][c] = { ...sol, given: true }
+  }
+  return grid
+}
+
+export function generateLevels(count = 100): Level[] {
+  const levels: Level[] = []
+  for (let i = 1; i <= count; i++) {
+    // Make a random full solution respecting row digit pools.
+    const r1 = shuffle(ROW_DIGITS[0])
+    const r2 = shuffle(ROW_DIGITS[1])
+    const r3 = shuffle(ROW_DIGITS[2])
+
+    // operators
+    const op1: Op = '+'
+    const op2: Op = Math.random() < 0.5 ? '+' : '-'
+    const op3: Op = Math.random() < 0.5 ? '+' : '-'
+
+    // Construct solution grid (3x4)
+    const sol: Cell[][] = [
+      [
+        { kind: 'digit', value: r1[0] },
+        { kind: 'op', value: op1, given: true },
+        { kind: 'digit', value: r1[1] },
+        { kind: 'digit', value: r1[2] },
+      ],
+      [
+        { kind: 'digit', value: r2[0] },
+        { kind: 'digit', value: r2[1] },
+        { kind: 'op', value: op2 },
+        { kind: 'digit', value: r2[2] },
+      ],
+      [
+        { kind: 'digit', value: r3[0] },
+        { kind: 'op', value: op3 },
+        { kind: 'digit', value: r3[1] },
+        { kind: 'digit', value: r3[2] },
+      ],
+    ]
+
+    const target = evaluateGrid(sol).value
+
+    // Hints per difficulty bands
+    let hintCount = 2
+    if (i >= 40 && i <= 79) hintCount = 1
+    if (i >= 80) hintCount = 0
+
+    const base = makeEmptyGrid()
+    // Set operator slot defaults to the solution (still toggleable)
+    ;(base[1][2] as Extract<Cell, { kind: 'op' }>).value = op2
+    ;(base[2][1] as Extract<Cell, { kind: 'op' }>).value = op3
+
+    const hinted = applyHints(base, sol, hintCount)
+
+    levels.push({
+      puzzle: {
+        title: 'Numberflow',
+        level: i,
+        target,
+        rowDigits: ROW_DIGITS,
+        grid: hinted,
+      },
+      solution: sol,
+    })
+  }
+
+  return levels
+}

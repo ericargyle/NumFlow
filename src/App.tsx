@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { SAMPLE_PUZZLES, type Cell, cloneGrid, evaluateGrid, validatePuzzleRules } from './numflow'
+import { type Cell, cloneGrid, evaluateGrid, generateLevels, validatePuzzleRules } from './numflow'
 import {
   DndContext,
   PointerSensor,
@@ -27,7 +27,26 @@ function cellLabel(cell: Cell): string {
   return cell.value
 }
 
-function DraggableDigit({ row, digit, disabled, active, onPick }: { row: number; digit: number; disabled: boolean; active: boolean; onPick: () => void }) {
+function formatMMSS(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const mm = Math.floor(s / 60)
+  const ss = s % 60
+  return `${mm}:${String(ss).padStart(2, '0')}`
+}
+
+function DraggableDigit({
+  row,
+  digit,
+  disabled,
+  active,
+  onPick,
+}: {
+  row: number
+  digit: number
+  disabled: boolean
+  active: boolean
+  onPick: () => void
+}) {
   const id = `digit:${row}:${digit}`
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id,
@@ -44,7 +63,9 @@ function DraggableDigit({ row, digit, disabled, active, onPick }: { row: number;
     <button
       ref={setNodeRef}
       style={style}
-      className={['digitBtn', disabled ? 'disabled' : '', active ? 'active' : '', isDragging ? 'dragging' : ''].filter(Boolean).join(' ')}
+      className={['digitBtn', disabled ? 'disabled' : '', active ? 'active' : '', isDragging ? 'dragging' : '']
+        .filter(Boolean)
+        .join(' ')}
       disabled={disabled}
       onClick={onPick}
       {...listeners}
@@ -77,21 +98,66 @@ function DroppableCell({
   })
 
   return (
-    <button
-      ref={setNodeRef}
-      className={[className, isOver ? 'over' : ''].filter(Boolean).join(' ')}
-      onClick={onClick}
-    >
+    <button ref={setNodeRef} className={[className, isOver ? 'over' : ''].filter(Boolean).join(' ')} onClick={onClick}>
       {children}
     </button>
   )
 }
 
-function App() {
-  const puzzle = SAMPLE_PUZZLES[0]
+function LightbulbIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M9 21h6m-5-3h4m-1.3-2.3c.7-.8 1.3-1.6 1.3-3.2 0-1.1.6-2 1.5-3A6.5 6.5 0 1 0 6.6 9.5c.9 1 1.4 1.9 1.4 3 0 1.7.6 2.5 1.3 3.2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path d="M10 7a2 2 0 0 1 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export default function App() {
+  const levels = useMemo(() => generateLevels(100), [])
+
+  const [levelIndex, setLevelIndex] = useState(0)
+  const level = levels[levelIndex]
+  const puzzle = level.puzzle
 
   const [grid, setGrid] = useState<Cell[][]>(() => cloneGrid(puzzle.grid))
   const [selected, setSelected] = useState<Selected>(null)
+
+  const [score, setScore] = useState<number>(() => {
+    const v = localStorage.getItem('numflow:v3:score')
+    const n = v ? Number(v) : 0
+    return Number.isFinite(n) ? n : 0
+  })
+
+  const [secondsLeft, setSecondsLeft] = useState(300)
+  const timerRef = useRef<number | null>(null)
+
+  const [hintMsg, setHintMsg] = useState<string>('')
+
+  // Reset state on level change
+  useEffect(() => {
+    setGrid(cloneGrid(puzzle.grid))
+    setSelected(null)
+    setSecondsLeft(300)
+    setHintMsg('')
+  }, [levelIndex])
+
+  // Timer tick
+  useEffect(() => {
+    if (timerRef.current) window.clearInterval(timerRef.current)
+    timerRef.current = window.setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0))
+    }, 1000)
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [levelIndex])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -118,11 +184,29 @@ function App() {
     }
   }, [grid, puzzle])
 
-  // Score is shown in the status area below.
+  // Increment score once per level when solved
+  const solvedRef = useRef(false)
+  useEffect(() => {
+    const isSolved = status.state === 'correct'
+    if (isSolved && !solvedRef.current) {
+      solvedRef.current = true
+      setScore((prev) => {
+        const next = prev + 1
+        localStorage.setItem('numflow:v3:score', String(next))
+        return next
+      })
+    }
+    if (!isSolved) solvedRef.current = false
+  }, [status.state])
 
   const reset = () => {
     setGrid(cloneGrid(puzzle.grid))
     setSelected(null)
+    setHintMsg('')
+  }
+
+  const nextLevel = () => {
+    setLevelIndex((i) => (i < levels.length - 1 ? i + 1 : i))
   }
 
   const toggleOp = (r: number, c: number) => {
@@ -148,7 +232,6 @@ function App() {
   }
 
   const placeDigit = (r: number, c: number, fromRow: number, digit: number) => {
-    // Must place into same row tray
     if (fromRow !== r) return
     if (usedDigits.has(digit)) return
 
@@ -166,7 +249,6 @@ function App() {
     if (cell.kind === 'op') return toggleOp(r, c)
     if (cell.kind === 'digit') return clearDigit(r, c)
 
-    // fallback: click-to-place
     if (!selected) return
     placeDigit(r, c, selected.row, selected.digit)
   }
@@ -176,7 +258,6 @@ function App() {
     const activeData = event.active.data.current as DragData | undefined
     if (!overId || !activeData || activeData.kind !== 'digit') return
 
-    // overId like cell:r:c
     if (typeof overId !== 'string' || !overId.startsWith('cell:')) return
     const [, rs, cs] = overId.split(':')
     const r = Number(rs)
@@ -186,17 +267,64 @@ function App() {
     placeDigit(r, c, activeData.row, activeData.digit)
   }
 
+  const canUseHint = secondsLeft > 60
+
+  const useHint = () => {
+    if (!canUseHint) return
+
+    // Find an empty digit cell and fill it with the correct digit from the solution.
+    const empties: Array<{ r: number; c: number }> = []
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (grid[r][c].kind === 'empty') empties.push({ r, c })
+      }
+    }
+
+    if (empties.length === 0) return
+    const pick = empties[Math.floor(Math.random() * empties.length)]
+    const sol = level.solution[pick.r][pick.c]
+    if (sol.kind !== 'digit') return
+
+    setGrid((prev) => {
+      const next = cloneGrid(prev)
+      if (next[pick.r][pick.c].kind !== 'empty') return prev
+      next[pick.r][pick.c] = { kind: 'digit', value: sol.value, given: true }
+      return next
+    })
+
+    setSecondsLeft((s) => Math.max(0, s - 60))
+    setHintMsg('1 minute penalty')
+  }
+
+  const clockTone = secondsLeft <= 60 ? 'red' : secondsLeft <= 120 ? 'yellow' : 'normal'
+
   return (
     <div className="page">
       <header className="header">
         <div>
-          <div className="title">NumFlow <span className="version">v2</span></div>
-          <div className="subtitle">{puzzle.title} • Level {puzzle.level}</div>
+          <div className="title">
+            NumFlow <span className="version">v3</span>
+          </div>
+          <div className="subtitle">
+            {puzzle.title} • Level {puzzle.level}/100
+          </div>
         </div>
 
-        <div className="target" aria-label="Target">
-          <div className="targetLabel">Target</div>
-          <div className="targetValue">{puzzle.target}</div>
+        <div className="topRight">
+          <div className={["infoBox", "clock", clockTone].join(' ')} aria-label="Countdown clock">
+            <div className="infoLabel">Time</div>
+            <div className="infoValue">{formatMMSS(secondsLeft)}</div>
+          </div>
+
+          <div className="infoBox" aria-label="Score">
+            <div className="infoLabel">Score</div>
+            <div className="infoValue">{score}</div>
+          </div>
+
+          <div className="infoBox" aria-label="Target">
+            <div className="infoLabel">Target</div>
+            <div className="infoValue">{puzzle.target}</div>
+          </div>
         </div>
       </header>
 
@@ -208,7 +336,6 @@ function App() {
                 {row.map((cell, c) => {
                   const isGiven = cell.kind !== 'empty' && !!cell.given
                   const kind = cell.kind
-
                   const canDrop = cell.kind === 'empty'
 
                   const classes = ['cell', kind, isGiven ? 'given' : '', selected && cell.kind === 'empty' ? 'placeable' : '']
@@ -224,14 +351,7 @@ function App() {
 
                   if (cell.kind === 'empty') {
                     return (
-                      <DroppableCell
-                        key={c}
-                        r={r}
-                        c={c}
-                        canDrop={canDrop}
-                        className={classes}
-                        onClick={() => onCellClick(r, c)}
-                      >
+                      <DroppableCell key={c} r={r} c={c} canDrop={canDrop} className={classes} onClick={() => onCellClick(r, c)}>
                         <span aria-label={ariaLabel}>{cellLabel(cell)}</span>
                       </DroppableCell>
                     )
@@ -247,37 +367,62 @@ function App() {
             ))}
           </section>
 
-          <section className="trays" aria-label="Available digits">
-            <div className="trayTitle">Digits</div>
-
-            {puzzle.rowDigits.map((digits, r) => (
-              <div className="trayRow" key={r}>
-                <div className="trayRowLabel">Row {r + 1}</div>
-                <div className="trayDigits">
-                  {digits.map((d) => {
-                    const disabled = usedDigits.has(d)
-                    const active = selected?.row === r && selected.digit === d
-                    return (
-                      <DraggableDigit key={d} row={r} digit={d} disabled={disabled} active={active} onPick={() => setSelected({ row: r, digit: d })} />
-                    )
-                  })}
-                </div>
+          <section className="trays" aria-label="Digits and hint">
+            <div className="trayTop">
+              <div className="trayTitle">Digits</div>
+              <div className="trayRight" aria-label="Hint controls">
+                <button className={["hintBtn", !canUseHint ? 'disabled' : ''].join(' ')} onClick={useHint} disabled={!canUseHint}>
+                  <LightbulbIcon />
+                  Hint
+                </button>
+                <div className="penalty">1 minute penalty</div>
+                {hintMsg ? <div className="hintMsg">{hintMsg}</div> : null}
               </div>
-            ))}
+            </div>
+
+            <div className="trayLayout">
+              <div className="digitsBox" aria-label="Digits trays">
+                {puzzle.rowDigits.map((digits, r) => (
+                  <div className="trayRow" key={r}>
+                    <div className="trayRowLabel">Row {r + 1}</div>
+                    <div className="trayDigits">
+                      {digits.map((d) => {
+                        const disabled = usedDigits.has(d)
+                        const active = selected?.row === r && selected.digit === d
+                        return (
+                          <DraggableDigit key={d} row={r} digit={d} disabled={disabled} active={active} onPick={() => setSelected({ row: r, digit: d })} />
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hintBox" aria-label="Hint button area">
+                <button className={["hintBtnLarge", !canUseHint ? 'disabled' : ''].join(' ')} onClick={useHint} disabled={!canUseHint}>
+                  <LightbulbIcon size={22} />
+                  <div>
+                    <div className="hintBtnTitle">Hint</div>
+                    <div className="hintBtnSub">1 minute penalty</div>
+                  </div>
+                </button>
+              </div>
+            </div>
 
             <div className={['status', status.state].join(' ')}>{status.message}</div>
             <div className="actions">
               <button className="btn" onClick={reset}>
                 Reset
               </button>
+              <button className="btn" onClick={nextLevel} disabled={levelIndex >= levels.length - 1}>
+                Next
+              </button>
             </div>
           </section>
         </DndContext>
       </main>
 
-      <footer className="footer">MVP • left-to-right evaluation (no precedence) • digits concatenate until an operator</footer>
+      <footer className="footer">v3 • timer + hints • digits concatenate across all 12 cells</footer>
     </div>
   )
 }
-
-export default App
