@@ -172,6 +172,8 @@ export default function App() {
   const [hintUsed, setHintUsed] = useState(false)
   const [shimmerTarget, setShimmerTarget] = useState<{ row: number; digit: number } | null>(null)
   const celebrationPlayedRef = useRef(false)
+  const [failure, setFailure] = useState(false)
+  const failureSoundRef = useRef(false)
 
   // Reset state on level change
   useEffect(() => {
@@ -183,6 +185,8 @@ export default function App() {
     setHintUsed(false)
     setShimmerTarget(null)
     celebrationPlayedRef.current = false
+    setFailure(false)
+    failureSoundRef.current = false
   }, [levelIndex])
 
   // Timer tick
@@ -246,6 +250,46 @@ export default function App() {
     return set
   }, [puzzle.grid])
 
+  useEffect(() => {
+    if (secondsLeft === 0 && status.state !== 'correct') {
+      setFailure(true)
+    }
+  }, [secondsLeft, status.state])
+
+  useEffect(() => {
+    if (failure && timerRef.current) {
+      window.clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [failure])
+
+  useEffect(() => {
+    if (!failure || failureSoundRef.current) return
+    failureSoundRef.current = true
+    if (typeof window === 'undefined') return
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const oscillator = ctx.createOscillator()
+    oscillator.type = 'sawtooth'
+    oscillator.frequency.setValueAtTime(120, ctx.currentTime)
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.35)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2)
+    oscillator.connect(gain).connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 1.2)
+    const closeTimer = window.setTimeout(() => {
+      ctx.close().catch(() => {})
+    }, 1500)
+    return () => {
+      window.clearTimeout(closeTimer)
+      oscillator.stop()
+      ctx.close().catch(() => {})
+    }
+  }, [failure])
+
   // Increment score once per level when solved
   const solvedRef = useRef(false)
   useEffect(() => {
@@ -298,6 +342,8 @@ export default function App() {
     setGrid(cloneGrid(puzzle.grid))
     setSelected(null)
     setHintMsg('')
+    setFailure(false)
+    failureSoundRef.current = false
   }
 
   const nextLevel = () => {
@@ -556,6 +602,18 @@ export default function App() {
             <div className="victoryActions">
               <button className="btn primary" onClick={nextLevel} disabled={levelIndex >= levels.length - 1}>
                 Next level
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {failure && (
+        <div className="failureOverlay" role="alert" aria-live="assertive">
+          <div className="failureDialog">
+            <p>YOU FAILED!</p>
+            <div className="failureActions">
+              <button className="btn" onClick={reset}>
+                Try again
               </button>
             </div>
           </div>
