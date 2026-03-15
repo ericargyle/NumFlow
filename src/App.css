@@ -187,6 +187,11 @@
   box-shadow: inset 0 0 0 2px rgba(34, 197, 94, 0.22);
 }
 
+.cell.static {
+  border: 2px solid rgba(37, 99, 235, 0.85);
+  box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
 .cell:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.35);
   outline-offset: 2px;
@@ -205,14 +210,10 @@
   font-size: 15px;
 }
 
-.trayRight {
-  display: none; /* keep layout minimal, large button on right below */
-}
-
 .trayLayout {
   display: grid;
-  grid-template-columns: 4fr 1fr; /* ~80% / 20% */
-  gap: 10px;
+  grid-template-columns: 3fr 1.2fr;
+  gap: 14px;
   align-items: stretch;
 }
 
@@ -225,6 +226,8 @@
 
 .hintBox {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   align-items: stretch;
 }
 
@@ -288,36 +291,78 @@
   cursor: not-allowed;
 }
 
-.hintBtn,
-.hintBtnLarge {
-  border-radius: 16px;
-  border: 1px solid rgba(34, 197, 94, 0.22);
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.06));
-  color: #14532d;
-  font-weight: 900;
-  cursor: pointer;
+@keyframes shimmerPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
 }
 
-.hintBtnLarge {
-  width: 100%;
+.digitBtn.shimmer {
+  animation: shimmerPulse 1.6s ease-in-out infinite;
+  border-color: rgba(37, 99, 235, 0.7);
+}
+
+.controlStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.controlBtnLarge {
+  border-radius: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.45);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.02));
+  color: #0f172a;
+  font-weight: 900;
+  cursor: pointer;
   min-height: 120px;
   display: grid;
   place-items: stretch;
   padding: 0;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 
-.hintBtnInner {
+.controlBtnLarge.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.controlBtnLarge:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 3px;
+}
+
+.controlBtnInner {
   height: 100%;
   width: 100%;
   display: grid;
-  grid-template-rows: 3fr 2fr; /* ~60% / 40% */
+  grid-template-rows: auto auto auto;
+  gap: 6px;
   align-items: center;
   justify-items: center;
+  padding: 16px 12px;
 }
 
-.hintIconWrap {
+.controlIconWrap {
   display: grid;
   place-items: center;
+}
+
+.controlBtnLabel {
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.controlBtnLarge.shuffle {
+  border-color: rgba(14, 165, 233, 0.55);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.18), rgba(14, 165, 233, 0.04));
+  color: #0c4a6e;
 }
 
 .hintPenalty {
@@ -325,25 +370,13 @@
   text-align: center;
   font-size: 12px;
   font-weight: 900;
-  color: rgba(20, 83, 45, 0.75);
-  padding: 8px;
-}
-
-.hintBtnLarge:active {
-  transform: scale(0.99);
-}
-
-.hintBtnLarge.disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.penalty {
-  display: none;
+  color: rgba(15, 118, 110, 0.9);
 }
 
 .hintMsg {
-  display: none;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .status {
@@ -400,4 +433,51 @@
   margin-top: 10px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.victoryOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 25, 0.65);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  padding: 20px;
+}
+
+.victoryDialog {
+  background: var(--card);
+  border-radius: 22px;
+  padding: 28px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  box-shadow: var(--shadow);
+  text-align: center;
+  min-width: 280px;
+}
+
+.victoryDialog p {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  color: #0c1222;
+}
+
+.victoryActions {
+  display: flex;
+  justify-content: center;
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.95), rgba(29, 78, 216, 0.9));
+  border-color: rgba(37, 99, 235, 0.9);
+  color: #fff;
+}
+
+.btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary:active {
+  transform: scale(0.98);
 }

@@ -34,17 +34,47 @@ function formatMMSS(totalSeconds: number): string {
   return `${mm}:${String(ss).padStart(2, '0')}`
 }
 
+
+const VERSION = 'v03.14.26'
+const SCORE_STORAGE_KEY = 'numflow:v03.14.26:score'
+const LEGACY_SCORE_KEY = 'numflow:v3:score'
+
+function shuffleArray<T>(items: T[]): T[] {
+  const cloned = [...items]
+  for (let i = cloned.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[cloned[i], cloned[j]] = [cloned[j], cloned[i]]
+  }
+  return cloned
+}
+
+function ShuffleIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M16 4h4v4m0-4-5 5m0 0-3.5-3.5M4 15h4v4m0-4-5 5m0-5 3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function DraggableDigit({
   row,
   digit,
   disabled,
   active,
+  shimmer,
   onPick,
 }: {
   row: number
   digit: number
   disabled: boolean
   active: boolean
+  shimmer?: boolean
   onPick: () => void
 }) {
   const id = `digit:${row}:${digit}`
@@ -63,7 +93,7 @@ function DraggableDigit({
     <button
       ref={setNodeRef}
       style={style}
-      className={['digitBtn', disabled ? 'disabled' : '', active ? 'active' : '', isDragging ? 'dragging' : '']
+      className={['digitBtn', disabled ? 'disabled' : '', active ? 'active' : '', shimmer ? 'shimmer' : '', isDragging ? 'dragging' : '']
         .filter(Boolean)
         .join(' ')}
       disabled={disabled}
@@ -129,8 +159,8 @@ export default function App() {
   const [selected, setSelected] = useState<Selected>(null)
 
   const [, setScore] = useState<number>(() => {
-    const v = localStorage.getItem('numflow:v3:score')
-    const n = v ? Number(v) : 0
+    const stored = localStorage.getItem(SCORE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_SCORE_KEY)
+    const n = stored ? Number(stored) : 0
     return Number.isFinite(n) ? n : 0
   })
 
@@ -138,6 +168,10 @@ export default function App() {
   const timerRef = useRef<number | null>(null)
 
   const [hintMsg, setHintMsg] = useState<string>('')
+  const [digitLayout, setDigitLayout] = useState<number[][]>(() => puzzle.rowDigits.map((digits) => [...digits]))
+  const [hintUsed, setHintUsed] = useState(false)
+  const [shimmerTarget, setShimmerTarget] = useState<{ row: number; digit: number } | null>(null)
+  const celebrationPlayedRef = useRef(false)
 
   // Reset state on level change
   useEffect(() => {
@@ -145,6 +179,10 @@ export default function App() {
     setSelected(null)
     setSecondsLeft(300)
     setHintMsg('')
+    setDigitLayout(puzzle.rowDigits.map((digits) => [...digits]))
+    setHintUsed(false)
+    setShimmerTarget(null)
+    celebrationPlayedRef.current = false
   }, [levelIndex])
 
   // Timer tick
@@ -171,6 +209,18 @@ export default function App() {
     return used
   }, [grid])
 
+  useEffect(() => {
+    for (let r = 0; r < digitLayout.length; r += 1) {
+      for (const digit of digitLayout[r]) {
+        if (!usedDigits.has(digit)) {
+          setShimmerTarget({ row: r, digit })
+          return
+        }
+      }
+    }
+    setShimmerTarget(null)
+  }, [digitLayout, usedDigits])
+
   const status = useMemo(() => {
     try {
       const rules = validatePuzzleRules(puzzle, grid)
@@ -184,6 +234,18 @@ export default function App() {
     }
   }, [grid, puzzle])
 
+  const staticCells = useMemo(() => {
+    const set = new Set<CellId>()
+    for (let r = 0; r < puzzle.grid.length; r += 1) {
+      for (let c = 0; c < puzzle.grid[r].length; c += 1) {
+        if (puzzle.grid[r][c].kind !== 'empty') {
+          set.add(cellId(r, c))
+        }
+      }
+    }
+    return set
+  }, [puzzle.grid])
+
   // Increment score once per level when solved
   const solvedRef = useRef(false)
   useEffect(() => {
@@ -192,11 +254,44 @@ export default function App() {
       solvedRef.current = true
       setScore((prev) => {
         const next = prev + 1
-        localStorage.setItem('numflow:v3:score', String(next))
+        localStorage.setItem(SCORE_STORAGE_KEY, String(next))
         return next
       })
     }
     if (!isSolved) solvedRef.current = false
+  }, [status.state])
+
+  useEffect(() => {
+    if (status.state === 'correct') {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      if (!celebrationPlayedRef.current) {
+        celebrationPlayedRef.current = true
+        if (typeof window !== 'undefined') {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+          if (AudioCtx) {
+            const ctx = new AudioCtx()
+            const oscillator = ctx.createOscillator()
+            oscillator.type = 'triangle'
+            oscillator.frequency.setValueAtTime(520, ctx.currentTime)
+            const gain = ctx.createGain()
+            gain.gain.setValueAtTime(0.001, ctx.currentTime)
+            gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 0.06)
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+            oscillator.connect(gain).connect(ctx.destination)
+            oscillator.start()
+            oscillator.stop(ctx.currentTime + 0.4)
+            setTimeout(() => {
+              ctx.close().catch(() => {})
+            }, 600)
+          }
+        }
+      }
+    } else {
+      celebrationPlayedRef.current = false
+    }
   }, [status.state])
 
   const reset = () => {
@@ -267,7 +362,7 @@ export default function App() {
     placeDigit(r, c, activeData.row, activeData.digit)
   }
 
-  const canUseHint = secondsLeft > 60
+  const canUseHint = secondsLeft > 60 && !hintUsed
 
   const useHint = () => {
     if (!canUseHint) return
@@ -291,9 +386,20 @@ export default function App() {
       next[pick.r][pick.c] = { kind: 'digit', value: sol.value, given: true }
       return next
     })
+    setHintUsed(true)
 
     setSecondsLeft((s) => Math.max(0, s - 60))
-    setHintMsg('1 minute penalty')
+    setHintMsg('Hint used • 1 minute penalty')
+  }
+
+  const shuffleTray = () => {
+    setDigitLayout((prev) =>
+      prev.map((digits) => {
+        const available = digits.filter((d) => !usedDigits.has(d))
+        const locked = digits.filter((d) => usedDigits.has(d))
+        return [...shuffleArray(available), ...locked]
+      }),
+    )
   }
 
   const clockTone = secondsLeft <= 60 ? 'red' : secondsLeft <= 120 ? 'yellow' : 'normal'
@@ -303,7 +409,7 @@ export default function App() {
       <header className="header">
         <div>
           <div className="title">
-            NumFlow <span className="version">v3</span>
+            NumFlow <span className="version">{VERSION}</span>
           </div>
           <div className="subtitle">
             {puzzle.title} • Level {puzzle.level}/100
@@ -334,7 +440,7 @@ export default function App() {
                   const kind = cell.kind
                   const canDrop = cell.kind === 'empty'
 
-                  const classes = ['cell', kind, isGiven ? 'given' : '', selected && cell.kind === 'empty' ? 'placeable' : '']
+                  const classes = ['cell', kind, isGiven ? 'given' : '', staticCells.has(cellId(r, c)) ? 'static' : '', selected && cell.kind === 'empty' ? 'placeable' : '']
                     .filter(Boolean)
                     .join(' ')
 
@@ -366,27 +472,28 @@ export default function App() {
           <section className="trays" aria-label="Digits and hint">
             <div className="trayTop">
               <div className="trayTitle">Digits</div>
-              <div className="trayRight" aria-label="Hint controls">
-                <button className={["hintBtn", !canUseHint ? 'disabled' : ''].join(' ')} onClick={useHint} disabled={!canUseHint}>
-                  <LightbulbIcon />
-                  Hint
-                </button>
-                <div className="penalty">1 minute penalty</div>
-                {hintMsg ? <div className="hintMsg">{hintMsg}</div> : null}
-              </div>
             </div>
 
             <div className="trayLayout">
               <div className="digitsBox" aria-label="Digits trays">
-                {puzzle.rowDigits.map((digits, r) => (
+                {digitLayout.map((digits, r) => (
                   <div className="trayRow" key={r}>
                     <div className="trayRowLabel">Row {r + 1}</div>
                     <div className="trayDigits">
                       {digits.map((d) => {
                         const disabled = usedDigits.has(d)
                         const active = selected?.row === r && selected.digit === d
+                        const highlight = shimmerTarget?.row === r && shimmerTarget?.digit === d
                         return (
-                          <DraggableDigit key={d} row={r} digit={d} disabled={disabled} active={active} onPick={() => setSelected({ row: r, digit: d })} />
+                          <DraggableDigit
+                            key={d}
+                            row={r}
+                            digit={d}
+                            disabled={disabled}
+                            active={active}
+                            shimmer={highlight}
+                            onPick={() => setSelected({ row: r, digit: d })}
+                          />
                         )
                       })}
                     </div>
@@ -394,15 +501,37 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="hintBox" aria-label="Hint button area">
-                <button className={["hintBtnLarge", !canUseHint ? 'disabled' : ''].join(' ')} onClick={useHint} disabled={!canUseHint}>
-                  <div className="hintBtnInner">
-                    <div className="hintIconWrap">
-                      <LightbulbIcon size={44} />
+              <div className="hintBox" aria-label="Hint and shuffle controls">
+                <div className="controlStack">
+                  <button
+                    className={['controlBtnLarge', !canUseHint ? 'disabled' : ''].join(' ')}
+                    onClick={useHint}
+                    disabled={!canUseHint}
+                    aria-label="Use a hint (1 minute penalty)"
+                  >
+                    <div className="controlBtnInner">
+                      <div className="controlIconWrap">
+                        <LightbulbIcon size={44} />
+                      </div>
+                      <div className="controlBtnLabel">Hint</div>
+                      <div className="hintPenalty">1 minute penalty</div>
                     </div>
-                    <div className="hintPenalty">1 minute penalty</div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    className="controlBtnLarge shuffle"
+                    onClick={shuffleTray}
+                    type="button"
+                    aria-label="Shuffle playable numbers"
+                  >
+                    <div className="controlBtnInner">
+                      <div className="controlIconWrap">
+                        <ShuffleIcon size={34} />
+                      </div>
+                      <div className="controlBtnLabel">Shuffle</div>
+                    </div>
+                  </button>
+                </div>
+                {hintMsg ? <div className="hintMsg">{hintMsg}</div> : null}
               </div>
             </div>
 
@@ -419,7 +548,19 @@ export default function App() {
         </DndContext>
       </main>
 
-      <footer className="footer">v3 • timer + hints • digits concatenate across all 12 cells</footer>
+      <footer className="footer">{VERSION} • timer + hints • digits concatenate across all 12 cells</footer>
+      {status.state === 'correct' && (
+        <div className="victoryOverlay" role="alertdialog" aria-live="assertive">
+          <div className="victoryDialog">
+            <p>Good job!</p>
+            <div className="victoryActions">
+              <button className="btn primary" onClick={nextLevel} disabled={levelIndex >= levels.length - 1}>
+                Next level
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

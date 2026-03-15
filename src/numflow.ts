@@ -96,7 +96,7 @@ export function validatePuzzleRules(puzzle: Puzzle, grid: Cell[][]): { ok: boole
       }
     }
   }
-  if (seen.size !== 9) return { ok: false, error: 'All 9 digits must be placed.' }
+  if (seen.size !== 9) return { ok: false, error: 'Place digits, reach the target number. Go with the flow until you match.' }
 
   for (let r = 0; r < 3; r++) {
     const allowed = new Set(puzzle.rowDigits[r])
