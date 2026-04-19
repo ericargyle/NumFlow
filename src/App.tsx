@@ -35,8 +35,8 @@ function formatMMSS(totalSeconds: number): string {
 }
 
 
-const VERSION = 'v03.14.26'
-const SCORE_STORAGE_KEY = 'numflow:v03.14.26:score'
+const VERSION = 'v04.19.26'
+const SCORE_STORAGE_KEY = 'numflow:v04.19.26:score'
 const LEGACY_SCORE_KEY = 'numflow:v3:score'
 
 function shuffleArray<T>(items: T[]): T[] {
