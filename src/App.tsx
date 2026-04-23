@@ -14,6 +14,7 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 
 type Selected = { row: number; digit: number } | null
 
+
 type DragData = { kind: 'digit'; row: number; digit: number }
 
 type CellId = `cell:${number}:${number}`
@@ -35,8 +36,8 @@ function formatMMSS(totalSeconds: number): string {
 }
 
 
-const VERSION = 'v04.19.26'
-const SCORE_STORAGE_KEY = 'numflow:v04.19.26:score'
+const VERSION = 'v2'
+const SCORE_STORAGE_KEY = 'numflow:v04.20.2020:score'
 const LEGACY_SCORE_KEY = 'numflow:v3:score'
 
 function shuffleArray<T>(items: T[]): T[] {
