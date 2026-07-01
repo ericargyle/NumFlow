@@ -36,7 +36,7 @@ function formatMMSS(totalSeconds: number): string {
 }
 
 
-const VERSION = 'v2'
+const VERSION = 'v07-2026'
 const SCORE_STORAGE_KEY = 'numflow:v04.20.2020:score'
 const LEGACY_SCORE_KEY = 'numflow:v3:score'
 
